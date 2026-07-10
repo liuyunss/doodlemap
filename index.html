@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>漫游图 DoodleMap — 手绘风格地图编辑器</title>
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗺️</text></svg>">
+</head>
+<body>
+    <!-- Top Toolbar -->
+    <div id="toolbar">
+        <div id="toolbar-left">
+            <button id="toggle-panel" class="tool-btn" title="素材面板">🎨</button>
+            <div id="style-switcher">
+                <button class="style-btn active" data-style="handdrawn">✏️ 手绘</button>
+                <button class="style-btn" data-style="cartoon">🎨 卡通</button>
+                <button class="style-btn" data-style="minimal">⚪ 简约</button>
+            </div>
+        </div>
+        <div id="search-container">
+            <input type="text" id="search-input" placeholder="🔍 搜索地名..." autocomplete="off">
+            <div id="search-results" class="search-results hidden"></div>
+        </div>
+        <div id="toolbar-right">
+            <button id="export-btn" class="tool-btn primary" title="导出 PNG">📸 导出</button>
+            <button id="config-btn" class="tool-btn" title="配置">⚙️</button>
+            <button id="clear-btn" class="tool-btn danger" title="清空标注">🗑️</button>
+        </div>
+    </div>
+
+    <!-- Left Panel: Icons -->
+    <div id="left-panel" class="panel">
+        <div class="panel-header">
+            <h3>素材库</h3>
+            <button id="panel-close" class="panel-close-btn">✕</button>
+        </div>
+        <div class="icon-search">
+            <input type="text" id="icon-search-input" placeholder="搜索图标..." autocomplete="off">
+        </div>
+        <div class="icon-categories">
+            <button class="cat-btn active" data-cat="all">全部</button>
+            <button class="cat-btn" data-cat="maki">地标</button>
+            <button class="cat-btn" data-cat="food">美食</button>
+            <button class="cat-btn" data-cat="transport">交通</button>
+            <button class="cat-btn" data-cat="nature">自然</button>
+            <button class="cat-btn" data-cat="building">建筑</button>
+        </div>
+        <div id="icon-grid" class="icon-grid">
+            <!-- Icons loaded dynamically -->
+        </div>
+        <div id="icon-loading" class="icon-loading hidden">
+            <div class="spinner"></div>
+            <p>加载中...</p>
+        </div>
+    </div>
+
+    <!-- Map Container -->
+    <div id="map-container">
+        <div id="map"></div>
+        <!-- Custom overlay for markers -->
+        <div id="marker-overlay"></div>
+        <!-- Loading indicator -->
+        <div id="map-loading" class="map-loading hidden">
+            <div class="spinner large"></div>
+            <p id="map-loading-text">加载地图中...</p>
+        </div>
+    </div>
+
+    <!-- Config Panel -->
+    <div id="config-overlay" class="overlay hidden"></div>
+    <div id="config-panel" class="side-panel right">
+        <div class="panel-header">
+            <h3>⚙️ 配置</h3>
+            <button id="config-close" class="panel-close-btn">✕</button>
+        </div>
+        <div class="config-body">
+            <div class="config-group">
+                <label>Nominatim 代理地址</label>
+                <input type="text" id="cfg-proxy" placeholder="http://172.17.0.1:7890">
+                <small>用于获取区域边界，留空则直连</small>
+            </div>
+            <div class="config-group">
+                <label>瓦片源 URL</label>
+                <input type="text" id="cfg-tile-url" placeholder="https://tiles.versatiles.org/tiles/osm/{z}/{x}/{y}.pbf">
+                <small>矢量瓦片源地址</small>
+            </div>
+            <div class="config-group">
+                <label>默认中心点</label>
+                <div class="config-row">
+                    <input type="number" id="cfg-center-lng" placeholder="经度" step="0.01">
+                    <input type="number" id="cfg-center-lat" placeholder="纬度" step="0.01">
+                </div>
+            </div>
+            <div class="config-group">
+                <label>默认缩放级别</label>
+                <input type="range" id="cfg-zoom" min="0" max="18" value="10" class="slider">
+                <span id="cfg-zoom-val">10</span>
+            </div>
+            <div class="config-group">
+                <label>字体选择</label>
+                <select id="cfg-font">
+                    <option value="ZCOOL KuaiLe">站酷快乐体</option>
+                    <option value="Noto Sans SC">思源黑体</option>
+                    <option value="cursive">系统手写体</option>
+                </select>
+            </div>
+            <div class="config-group">
+                <label>配色方案</label>
+                <select id="cfg-color-scheme">
+                    <option value="warm">暖色调（默认）</option>
+                    <option value="cool">冷色调</option>
+                    <option value="vintage">复古色调</option>
+                </select>
+            </div>
+            <div class="config-group">
+                <label>导出分辨率</label>
+                <select id="cfg-export-scale">
+                    <option value="1">标准 (1x)</option>
+                    <option value="2">高清 (2x)</option>
+                    <option value="3">超清 (3x)</option>
+                </select>
+            </div>
+            <div class="config-group">
+                <label>手绘抖动强度</label>
+                <input type="range" id="cfg-roughness" min="0.5" max="3" step="0.1" value="1.5" class="slider">
+                <span id="cfg-roughness-val">1.5</span>
+            </div>
+            <div class="config-actions">
+                <button id="cfg-save" class="btn primary">保存配置</button>
+                <button id="cfg-reset" class="btn">恢复默认</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Text Annotation Modal -->
+    <div id="text-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>添加文字标注</h3>
+            <input type="text" id="text-input" placeholder="输入文字..." autocomplete="off">
+            <div class="modal-actions">
+                <button id="text-cancel" class="btn">取消</button>
+                <button id="text-confirm" class="btn primary">添加</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Marker Edit Toolbar -->
+    <div id="marker-toolbar" class="hidden">
+        <button id="marker-scale-up" title="放大">🔍+</button>
+        <button id="marker-scale-down" title="缩小">🔍−</button>
+        <button id="marker-rotate" title="旋转">🔄</button>
+        <button id="marker-delete" title="删除" class="danger">🗑️</button>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast hidden"></div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <script src="https://unpkg.com/roughjs@4.6.6/bundled/rough.js"></script>
+    <script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
